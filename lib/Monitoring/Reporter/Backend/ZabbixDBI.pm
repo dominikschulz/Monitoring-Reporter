@@ -533,57 +533,49 @@ EOS
   return $rows;
 }
 
-=method execute
+=method selftest
 
 Perform an Zabbix Server Selftest/Healthcheck
 
 =cut
-sub execute {
+sub selftest {
    my $self = shift;
-   my $request = shift;
 
-   my $body;
-   my $status = 200;
-
-   # TODO move zabbix stuff to Backend::ZabbixDBI and
-   # use mr()->selftest() instead!
+   my $ok = 1;
+   my @msgs = ();
 
    if($self->_check_db_ping()) {
-      $body .= "OK - DB Connection is working\n";
+      push(@msgs,"OK - DB Connection is working");
    } else {
-      $body .= "ERROR - DB connection not working!\n";
-      $status = 503;
+      push(@msgs,"ERROR - DB connection not working!");
+      $ok = 0;
    }
 
    # Make sure there were any event during the last 5 minutes
    if($self->_check_db_count('SELECT COUNT(*) FROM events WHERE clock >= UNIX_TIMESTAMP(NOW())-300')) {
-      $body .= "OK - Some events during the last 5 minutes\n";
+      push(@msgs,"OK - Some events during the last 5 minutes");
    } else {
-      $body .= "ERROR - No events during the last 5 minutes\n";
-      $status = 503;
+      push(@msgs,"ERROR - No events during the last 5 minutes");
+      $ok = 0;
    }
 
    # Make sure there was at least on trigger event in the last 24h
    if($self->_check_db_count('SELECT COUNT(*) FROM triggers AS t WHERE t.lastchange > UNIX_TIMESTAMP(NOW() - INTERVAL 1 DAY)')) {
-      $body .= "OK - Some events during the last 5 minutes\n";
+      push(@msgs,"OK - Some events during the last 5 minutes");
    } else {
-      $body .= "ERROR - No events during the last 5 minutes\n";
-      $status = 503;
+      push(@msgs,"ERROR - No events during the last 5 minutes");
+      $ok = 0;
    }
-
 
    # Make sure the server process is listening on port 10051
    if($self->_check_open_port(10051)) {
-      $body .= "OK - Server is listening on port 10051\n";
+      push(@msgs,"OK - Server is listening on port 10051");
    } else {
-      $body .= "ERROR - Server is not listening on port 10051\n";
-      $status = 503;
+      push(@msgs,"ERROR - Server is not listening on port 10051");
+      $ok = 0,
    }
-
-    return [ $status, [
-      'Content-Type', 'text/plain',
-      'Cache-Control', 'no-store, private', # no caching for the selftest
-    ], [$body] ];
+   
+   return ($ok,\@msgs);
 }
 
 sub _check_open_port {
