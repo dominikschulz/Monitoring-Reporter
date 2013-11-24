@@ -1,6 +1,6 @@
 #!perl -T
 
-use Test::More tests => 1;
+use Test::More tests => 14;
 
 BEGIN {
     use_ok( 'Monitoring::Reporter::Backend::NagiosLivestatus' ) || print "Bail out!

@@ -1,4 +1,4 @@
-package Monitoring::Reporter;
+package Monitoring::Reporter::Backend::ZabbixDBI;
 # ABSTRACT: Monitoring dashboard
 
 use Moose;
@@ -544,7 +544,7 @@ sub selftest {
    my $ok = 1;
    my @msgs = ();
 
-   if($self->_check_db_ping()) {
+   if($self->_selftest_check_db_ping()) {
       push(@msgs,"OK - DB Connection is working");
    } else {
       push(@msgs,"ERROR - DB connection not working!");
@@ -552,7 +552,7 @@ sub selftest {
    }
 
    # Make sure there were any event during the last 5 minutes
-   if($self->_check_db_count('SELECT COUNT(*) FROM events WHERE clock >= UNIX_TIMESTAMP(NOW())-300')) {
+   if($self->_selftest_check_db_count('SELECT COUNT(*) FROM events WHERE clock >= UNIX_TIMESTAMP(NOW())-300')) {
       push(@msgs,"OK - Some events during the last 5 minutes");
    } else {
       push(@msgs,"ERROR - No events during the last 5 minutes");
@@ -560,7 +560,7 @@ sub selftest {
    }
 
    # Make sure there was at least on trigger event in the last 24h
-   if($self->_check_db_count('SELECT COUNT(*) FROM triggers AS t WHERE t.lastchange > UNIX_TIMESTAMP(NOW() - INTERVAL 1 DAY)')) {
+   if($self->_selftest_check_db_count('SELECT COUNT(*) FROM triggers AS t WHERE t.lastchange > UNIX_TIMESTAMP(NOW() - INTERVAL 1 DAY)')) {
       push(@msgs,"OK - Some events during the last 5 minutes");
    } else {
       push(@msgs,"ERROR - No events during the last 5 minutes");
@@ -568,7 +568,7 @@ sub selftest {
    }
 
    # Make sure the server process is listening on port 10051
-   if($self->_check_open_port(10051)) {
+   if($self->_selftest_check_open_port(10051)) {
       push(@msgs,"OK - Server is listening on port 10051");
    } else {
       push(@msgs,"ERROR - Server is not listening on port 10051");
@@ -578,7 +578,7 @@ sub selftest {
    return ($ok,\@msgs);
 }
 
-sub _check_open_port {
+sub _selftest_check_open_port {
    my $self = shift;
    my $port = shift || 10051;
 
@@ -597,17 +597,17 @@ sub _check_open_port {
    return;
 }
 
-sub _check_db_ping {
+sub _selftest_check_db_ping {
    my $self = shift;
 
-   if($self->zr()->dbh()->ping()) {
+   if($self->dbh()->ping()) {
       return 1;
    }
 
    return;
 }
 
-sub _check_db_count {
+sub _selftest_check_db_count {
    my $self = shift;
    my $sql  = shift;
 
@@ -615,7 +615,7 @@ sub _check_db_count {
       return;
    }
 
-   my $sth = $self->zr()->dbh()->prepare($sql);
+   my $sth = $self->dbh()->prepare($sql);
    if(!$sth) {
       return;
    }

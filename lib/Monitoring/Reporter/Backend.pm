@@ -130,6 +130,7 @@ sub history {
 
   die('Not implemented');
 }
+
 __PACKAGE__->meta->make_immutable;
 
 1; # End of Monitoring::Reporter::Backend

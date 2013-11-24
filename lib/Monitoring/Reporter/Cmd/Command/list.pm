@@ -31,7 +31,7 @@ List all triggers.
 sub execute {
     my $self = shift;
 
-    my $triggers = $self->zr()->triggers();
+    my $triggers = $self->mr()->triggers();
     print Dumper($triggers);
 
     # TODO not yet implemented

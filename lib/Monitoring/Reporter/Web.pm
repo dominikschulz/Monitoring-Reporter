@@ -61,7 +61,7 @@ has '_tt' => (
     'builder' => '_init_tt',
 );
 
-has 'zr' => (
+has 'mr' => (
     'is'            => 'rw',
     'isa'           => 'Monitoring::Reporter',
     'lazy'          => 1,
@@ -123,7 +123,7 @@ sub _init_plugins {
         $arg_ref->{'logger'} = $self->logger();
         $arg_ref->{'config'} = $self->config();
         $arg_ref->{'tt'}     = $self->_tt();
-        $arg_ref->{'zr'}     = $self->zr();
+        $arg_ref->{'mr'}     = $self->mr();
         if ( $arg_ref->{'disabled'} ) {
             $self->logger()->log( message => 'Skipping disabled plugin: ' . $class_name, level => 'debug', );
             next PLUGIN;

@@ -38,7 +38,7 @@ sub execute {
     my $refresh  = $request->{'refresh'} || 360;
     my $age      = $request->{'age'}     || 30;
     my $num      = $request->{'num'}     || 100;
-    my $triggers = $self->zr()->history($age,$num);
+    my $triggers = $self->mr()->history($age,$num);
 
     my $body;
     $self->tt()->process(

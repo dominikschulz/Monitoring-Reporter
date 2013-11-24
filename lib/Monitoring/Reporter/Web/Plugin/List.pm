@@ -35,7 +35,7 @@ sub execute {
     my $self = shift;
     my $request = shift;
 
-    my $triggers = $self->zr()->triggers();
+    my $triggers = $self->mr()->triggers();
     my $refresh  = $request->{'refresh'} || 30;
 
     my $body;

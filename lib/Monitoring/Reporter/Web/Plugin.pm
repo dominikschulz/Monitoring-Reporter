@@ -50,7 +50,7 @@ has 'alias' => (
     'builder'       => '_init_alias',
 );
 
-has 'zr' => (
+has 'mr' => (
     'is'            => 'rw',
     'isa'           => 'Monitoring::Reporter',
     'required'      => 1,

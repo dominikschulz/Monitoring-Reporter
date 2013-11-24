@@ -31,7 +31,7 @@ List all triggers.
 sub execute {
     my $self = shift;
 
-    my $status = $self->zr()->enable_actions();
+    my $status = $self->mr()->enable_actions();
 
     return 1;
 }
