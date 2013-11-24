@@ -32,6 +32,7 @@ sub execute {
     my $self = shift;
 
     my $triggers = $self->mr()->triggers();
+    print "Triggers:\n";
     print Dumper($triggers);
 
     # TODO not yet implemented

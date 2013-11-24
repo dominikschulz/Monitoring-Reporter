@@ -56,7 +56,7 @@ sub _init_cache {
 sub _init_backends {
   my $self = shift;
 
-  my $backends_config = $self->config()->get( 'Monitoring::Reporter::Backends', { Default => {}, }, );
+  my $backends_config = $self->config()->get( 'Monitoring::Reporter::Backend', { Default => {}, }, );
   my $backends = {};
 
   BACKEND: foreach my $backend ( sort keys %{$backends_config} ) {
@@ -78,6 +78,7 @@ sub _init_backends {
     try {
       my $BE = $klass->new($arg_ref);
       $backends->{$backend} = $BE;
+      $self->logger()->log( message => 'Initialized backend '.$klass, level => 'debug', );
     } catch {
       $self->logger()->log( message => 'Failed to initialize backend '.$klass.' w/ error: '.$_, level => 'warning', );
     };
@@ -94,40 +95,28 @@ Retrieve all matching triggers.
 sub triggers {
   my $self = shift;
 
-  my @rows = $self->_do_backend_action('triggers');
+  my $row_ref = $self->_do_backend_action('triggers');
 
   # Post processing
   # - Sort triggers by severity and age
-  # TODO @rows = sort { } @rows;
+  $row_ref = [sort { $b->{'priority'} <=> $a->{'priority'} } @{$row_ref}];
   # - Sort acked triggers to the end
-  # TODO adjust
   my @unacked = ();
   my @acked   = ();
- foreach my $row (@rows) {
-   if (defined($row->{'priority'})) {
-     $row->{'severity'} = $self->_severity_map()->[$row->{'priority'}];
-   }
-   if (defined($row->{'description'})) {
-     $row->{'description'} =~ s/\{HOSTNAME\}/$row->{'host'}/g;
-     $row->{'description'} =~ s/\{HOST\.DNS\}/$row->{'host'}/g;
-   }
-   if (defined($row->{'triggerid'}) && defined($row->{'lastclock'})) {
-    my $ack = $self->acks($row->{'triggerid'},$row->{'lastclock'});
-    if($ack && ref($ack) eq 'ARRAY' && scalar @{$ack} > 0) {
-     foreach my $field (keys %{$ack->[0]}) {
-      $row->{$field} = $ack->[0]->{$field};
-     }
+  ROW: foreach my $row (@{$row_ref}) {
+    if(!$row || ref($row) ne 'HASH') {
+      $self->logger()->log( message => 'Skipping invalid row: '.$row, level => 'warning', );
+      next ROW;
     }
-   }
-   # this should be the last post-processing action
-   if($row->{'acknowledged'}) {
-    push(@acked,$row);
-   } else {
-    push(@unacked,$row);
-   }
- }
+    # this should be the last post-processing action
+    if($row->{'acknowledged'}) {
+     push(@acked,$row);
+    } else {
+     push(@unacked,$row);
+    }
+  }
   # sort acked triggers to the end
-  @rows = (@unacked,@acked);
+  my @rows = (@unacked,@acked);
 
   # Check for any unsupported items and prepend a warning as a pseudo trigger
   # if there are some
@@ -267,14 +256,22 @@ sub _do_backend_action {
   my @rows = ();
 
   BACKEND: foreach my $backend (sort keys %{$self->backends()}) {
-    next unless $self->_backend_filter_match($backend, $arg_ref); # TODO logging
+    if($self->_backend_filter_match($backend, $arg_ref)) {
+      $self->logger()->log( message => 'Executing action '.$action.' on backend '.$backend, level => 'debug', );
+    } else {
+      $self->logger()->log( message => 'Skipping Backend '.$backend.' for action '.$action.': No filter match.', level => 'notice', );
+      next BACKEND;
+    }
     my $row_ref; 
     try {
       $row_ref = $self->backends()->{$backend}->$action($arg_ref);
+    } catch {
+      $self->logger()->log( message => 'Failed to execute action '.$action.' on backend '.$backend.': '.$_, level => 'error', ); 
     };
-    # TODO add logging
     if($row_ref && ref($row_ref) eq 'ARRAY') {
       push(@rows,@{$row_ref});
+    } else {
+      $self->logger()->log( message => 'Ignoring non-ARRAY result from backend '.$backend.' for action '.$action, level => 'warning', );
     }
   }
 

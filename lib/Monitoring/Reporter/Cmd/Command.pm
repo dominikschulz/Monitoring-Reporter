@@ -38,12 +38,12 @@ has '_logger' => (
     'accessor' => 'logger',
 );
 
-has '_zr' => (
+has '_mr' => (
     'is'       => 'rw',
     'isa'      => 'Monitoring::Reporter',
     'lazy'     => 1,
-    'builder'  => '_init_zr',
-    'accessor' => 'zr',
+    'builder'  => '_init_mr',
+    'accessor' => 'mr',
 );
 
 # with ...
@@ -64,18 +64,18 @@ sub _init_logger {
     return $Logger;
 } ## end sub _init_logger
 
-sub _init_zr {
+sub _init_mr {
     my $self = shift;
 
-    my $ZR = Monitoring::Reporter::->new(
+    my $MR = Monitoring::Reporter::->new(
         {
             'config'   => $self->config(),
             'logger'   => $self->logger(),
         }
     );
 
-    return $ZR;
-} ## end sub _init_zr
+    return $MR;
+} ## end sub _init_mr
 
 # your code here ...
 

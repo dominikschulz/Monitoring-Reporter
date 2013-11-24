@@ -13,6 +13,12 @@ has 'cache' => (
     'builder' => '_init_cache',
 );
 
+has 'name' => (
+    'is'      => 'ro',
+    'isa'     => 'Str',
+    'required'  => 1,
+);
+
 with qw(Config::Yak::RequiredConfig Log::Tree::RequiredLogger);
 
 sub _init_cache {

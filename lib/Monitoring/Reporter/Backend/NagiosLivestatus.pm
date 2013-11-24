@@ -5,20 +5,26 @@ use Moose;
 use namespace::autoclean;
 
 use Monitoring::Livestatus;
-use Cache::MemoryCache;
 
 has 'lsc' => (
     'is'      => 'rw',
-    'isa'     => 'Monitoring::Livestatus::Class',
+    'isa'     => 'Monitoring::Livestatus',
     'lazy'    => 1,
     'builder' => '_init_lsc',
 );
 
-has 'cache' => (
-    'is'      => 'rw',
-    'isa'     => 'Cache::Cache',
-    'lazy'    => 1,
-    'builder' => '_init_cache',
+has '_mapping' => (
+  'is'  => 'ro',
+  'isa' => 'HashRef',
+  'lazy'  => 1,
+  'builder' => '_init_mapping',
+);
+
+has '_severity_mapping' => (
+  'is'  => 'ro',
+  'isa' => 'HashRef',
+  'lazy' => 1,
+  'builder' => '_init_severity_mapping',
 );
 
 extends 'Monitoring::Reporter::Backend';
@@ -30,22 +36,66 @@ sub _init_lsc {
 
   my $lsc_peer = $self->config()->get( 'Monitoring::Reporter::Backend::'.$self->name().'::Peer', { Default => '/var/lib/nagios3/rw/livestatus.sock', }, );
 
+  $self->logger()->log( message => 'Using LSC Peer: '.$lsc_peer, level => 'debug', );
+
   my $LSC = Monitoring::Livestatus::->new(
     'peer'  => $lsc_peer,
+    'warnings' => 0,
+    'verbose'  => 0,
   );
 
   return $LSC;
 }
 
-sub _init_cache {
-    my $self = shift;
+sub _init_mapping {
+  my $self = shift;
 
-    my $Cache = Cache::MemoryCache::->new({
-      'namespace'          => 'MonitoringReporter',
-      'default_expires_in' => 600,
-    });
+=begin mapping
 
-    return $Cache;
+priority  - last_state
+host      - host_display_name
+description - plugin_output
+hostid    - 0
+triggerid - 0
+itemid    - 0
+lastvalue - plugin_output
+lastclock - last_state_change
+lastchange - last_time_ok
+value     - plugin_output
+comments  - ''
+units     - ''
+valuemapid - ''
+triggerdepid - 0
+=cut
+  my $Mapping = {
+    'priority'      => 'last_state',
+    'host'          => 'host_display_name',
+    'description'   => 'plugin_output',
+    'hostid'        => undef,
+    'triggerid'     => undef,
+    'itemid'        => undef,
+    'lastvalue'     => 'plugin_output',
+    'lastclock'     => 'last_state_change',
+    'lastchange'    => 'last_time_ok',
+    'value'         => 'plugin_output',
+    'comments'      => undef,
+    'units'         => undef,
+    'valuemapid'    => undef,
+    'triggerpid'    => undef,
+  };
+
+  return $Mapping;
+}
+
+sub _init_severity_mapping {
+  my $self = shift;
+
+  my $SevMapping = {
+    '0'   => '1', # OK -> information
+    '1'   => '4', # WARNING -> High
+    '2'   => '5', # CRITICAL -> Disaster
+  };
+  return $SevMapping;
 }
 
 =method fetch
@@ -54,24 +104,13 @@ Fetch a result directly from DB.
 
 =cut
 sub fetch {
-    my $self = shift;
-    my $query = shift;
-    my @args = @_;
+  my $self = shift;
+  my $query = shift;
+  my @args = @_;
 
-    my $sth = $self->dbh()->prepare($query)
-        or die("Could not prepare query $query: ".$self->dbh()->errstr);
+  my $refs = $self->lsc()->selectall_arrayref($query, { Slice => {}, });
 
-    $sth->execute(@args)
-        or die("Could not execute query $query: ".$self->dbh()->errstr);
-
-    my @result = ();
-
-    while(my $ref = $sth->fetchrow_hashref()) {
-        push(@result,$ref);
-    }
-    $sth->finish();
-
-    return \@result;
+  return $refs;
 }
 
 =method do
@@ -97,10 +136,28 @@ sub triggers {
 
   my @rows = ();
 
-  # TODO get services
-  my $arr_refs = $self->lsc()->selectall_arrayref("GET hosts");
-  $arr_refs = $self->lsc()->selectall_arrayref("GET services");
-  # TODO get hosts
+  $self->logger()->log( message => 'Nagios-Triggers', level => 'debug', );
+
+  #my $arr_refs = $self->fetch_n_store('GET services');
+  my $arr_refs = $self->fetch('GET services');
+
+  foreach my $e (@{$arr_refs}) {
+    #print "Host: ".$e->{'host_display_name'}." - ".$e->{'description'}." - ".$e->{'plugin_output'}." - ".$e->{'last_state'}."  - ".$e->{'last_time_ok'}."\n";
+    my $row = {};
+    foreach my $to (keys %{$self->_mapping()}) {
+      my $from = $self->_mapping()->{$to};
+      if(defined($from)) {
+        if($to eq 'priority') {
+          $row->{$to} = $self->_severity_mapping()->{$e->{$from}};
+        } else {
+          $row->{$to} = $e->{$from};
+        }
+      } else {
+        $row->{$to} = 0;
+      }
+    }
+    push(@rows, $row);
+  }
 
   return \@rows;
 }
