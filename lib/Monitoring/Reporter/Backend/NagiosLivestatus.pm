@@ -27,6 +27,13 @@ has '_severity_mapping' => (
   'builder' => '_init_severity_mapping',
 );
 
+has '_priority_mapping' => (
+  'is'  => 'ro',
+  'isa' => 'HashRef',
+  'lazy' => 1,
+  'builder' => '_init_priority_mapping',
+);
+
 extends 'Monitoring::Reporter::Backend';
 
 with qw(Config::Yak::RequiredConfig Log::Tree::RequiredLogger);
@@ -87,14 +94,26 @@ triggerdepid - 0
   return $Mapping;
 }
 
-sub _init_severity_mapping {
+sub _init_priority_mapping {
   my $self = shift;
 
-  my $SevMapping = {
+  my $PrioMapping = {
     '0'   => '1', # OK -> information
     '1'   => '4', # WARNING -> High
     '2'   => '5', # CRITICAL -> Disaster
   };
+  return $PrioMapping;
+}
+
+sub _init_severity_mapping {
+  my $self = shift;
+
+  my $SevMapping = {
+    '0'   => 'information',
+    '1'   => 'high',
+    '2'   => 'disaster',
+  };
+
   return $SevMapping;
 }
 
@@ -148,7 +167,8 @@ sub triggers {
       my $from = $self->_mapping()->{$to};
       if(defined($from)) {
         if($to eq 'priority') {
-          $row->{$to} = $self->_severity_mapping()->{$e->{$from}};
+          $row->{$to} = $self->_priority_mapping()->{$e->{$from}};
+          $row->{'severity'} = $self->_severity_mapping()->{$e->{$from}};
         } else {
           $row->{$to} = $e->{$from};
         }
