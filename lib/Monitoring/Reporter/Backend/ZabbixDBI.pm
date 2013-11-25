@@ -5,7 +5,6 @@ use Moose;
 use namespace::autoclean;
 
 use DBI;
-use Cache::MemoryCache;
 use IO::Socket::INET;
 
 has 'dbh' => (
@@ -13,13 +12,6 @@ has 'dbh' => (
     'isa'     => 'DBI::db',
     'lazy'    => 1,
     'builder' => '_init_dbh',
-);
-
-has 'cache' => (
-    'is'      => 'rw',
-    'isa'     => 'Cache::Cache',
-    'lazy'    => 1,
-    'builder' => '_init_cache',
 );
 
 has 'priorities' => (
@@ -82,11 +74,12 @@ with qw(Config::Yak::RequiredConfig Log::Tree::RequiredLogger);
 sub _dsn {
     my $self = shift;
 
-    my $hostname = $self->config()->get( 'Monitoring::Reporter::DB::Hostname', { Default => 'localhost', } );
-    my $port = $self->config()->get( 'Monitoring::Reporter::DB::Port', { Default => 3306, } );
-    my $database = $self->config()->get( 'Monitoring::Reporter::DB::Database', { Default => 'zabbix', } );
-    my $username = $self->config()->get( 'Monitoring::Reporter::DB::Username', { Default => 'zabbix', } );
-    my $password = $self->config()->get( 'Monitoring::Reporter::DB::Password', { Default => 'zabbix', } );
+    my $key_base = 'Monitoring::Reporter::Backend::'.$self->name().'::DB::';
+    my $hostname = $self->config()->get( $key_base.'Hostname',  { Default => 'localhost', } );
+    my $port = $self->config()->get(     $key_base.'Port',      { Default => 3306, } );
+    my $database = $self->config()->get( $key_base.'Database',  { Default => 'zabbix', } );
+    my $username = $self->config()->get( $key_base.'Username',  { Default => 'zabbix', } );
+    my $password = $self->config()->get( $key_base.'Password',  { Default => 'zabbix', } );
 
     my $dsn = 'DBI:mysql:user=' . $username;
     $dsn .= ';password=' . $password;
@@ -106,17 +99,6 @@ sub _init_dbh {
 }
 
 sub _init_zabbix_server_address { return 'localhost'; }
-
-sub _init_cache {
-    my $self = shift;
-
-    my $Cache = Cache::MemoryCache::->new({
-      'namespace'          => 'MonitoringReporter',
-      'default_expires_in' => 600,
-    });
-
-    return $Cache;
-}
 
 =method fetch_n_store
 

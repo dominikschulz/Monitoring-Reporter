@@ -123,8 +123,16 @@ sub triggers {
   }
 
   # Post processing
-  # - Sort triggers by severity and age
-  $row_ref = [sort { (defined($b->{'priority'}) ? $b->{'priority'} : 0) <=> (defined($a->{'priority'}) ? $a->{'priority'} : 0) } @{$row_ref}];
+  # Sort triggers by:
+  # 1.) priority
+  # 2.) lastchange (newer alarms are on top)
+  # 3.) hostname
+  $row_ref = [sort { 
+    (defined($b->{'priority'}) ? $b->{'priority'} : 0) <=> (defined($a->{'priority'}) ? $a->{'priority'} : 0)
+      ||
+    (defined($b->{'lastchange'}) ? $b->{'lastchange'} : 0) <=> (defined($a->{'lastchange'}) ? $a->{'lastchange'} : 0)
+      ||
+    ($a->{'host'} cmp $b->{'host'}) } @{$row_ref}];
   # - Sort acked triggers to the end
   my @unacked = ();
   my @acked   = ();
