@@ -1,6 +1,6 @@
 <Monitoring>
 	<Reporter>
-    <Backends>
+    <Backend>
       <Zabbix>
         type = ZabbixDBI
         key = 
@@ -16,6 +16,6 @@
         type = NagiosLivestatus
         peer = /var/lib/socket
       </Nagios>
-    </Backends>
+    </Backend>
 	</Reporter>
 </Monitoring>

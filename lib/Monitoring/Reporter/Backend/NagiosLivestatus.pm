@@ -13,6 +13,12 @@ has 'lsc' => (
     'builder' => '_init_lsc',
 );
 
+has 'cache_timeout' => (
+    'is'      => 'rw',
+    'isa'     => 'Int',
+    'default' => 60,
+);
+
 has '_mapping' => (
   'is'  => 'ro',
   'isa' => 'HashRef',
@@ -43,12 +49,27 @@ sub _init_lsc {
 
   my $lsc_peer = $self->config()->get( 'Monitoring::Reporter::Backend::'.$self->name().'::Peer', { Default => '/var/lib/nagios3/rw/livestatus.sock', }, );
 
+  if($lsc_peer && ref($lsc_peer) eq 'ARRAY') {
+    my @peers = ();
+    foreach my $peer (sort @{$lsc_peer}) {
+      my $name = $peer;
+      $name =~ s/[:\/]/_/g;
+      push(@peers,{
+        'name'  => $name,
+        'peer'  => $peer,
+      });
+    }
+    $lsc_peer = \@peers;
+  }
+
   $self->logger()->log( message => 'Using LSC Peer: '.$lsc_peer, level => 'debug', );
 
   my $LSC = Monitoring::Livestatus::->new(
-    'peer'  => $lsc_peer,
-    'warnings' => 0,
-    'verbose'  => 0,
+    'peer'        => $lsc_peer,
+    'keepalive'   => 1,
+    'warnings'    => 0,
+    'verbose'     => 0,
+    'use_threads' => 0,
   );
 
   return $LSC;
@@ -75,7 +96,7 @@ valuemapid - ''
 triggerdepid - 0
 =cut
   my $Mapping = {
-    'priority'      => 'last_state',
+    'priority'      => 'state',
     'host'          => 'host_display_name',
     'description'   => 'plugin_output',
     'hostid'        => undef,
@@ -85,7 +106,7 @@ triggerdepid - 0
     'lastclock'     => 'last_state_change',
     'lastchange'    => 'last_time_ok',
     'value'         => 'plugin_output',
-    'comments'      => undef,
+    'comments'      => 'host_notes',
     'units'         => undef,
     'valuemapid'    => undef,
     'triggerpid'    => undef,
@@ -98,9 +119,9 @@ sub _init_priority_mapping {
   my $self = shift;
 
   my $PrioMapping = {
-    '0'   => '1', # OK -> information
-    '1'   => '4', # WARNING -> High
-    '2'   => '5', # CRITICAL -> Disaster
+    '0'   => '0', # OK -> n.c.
+    '1'   => '3', # WARNING -> Average
+    '2'   => '4', # CRITICAL -> High
   };
   return $PrioMapping;
 }
@@ -110,8 +131,8 @@ sub _init_severity_mapping {
 
   my $SevMapping = {
     '0'   => 'information',
-    '1'   => 'high',
-    '2'   => 'disaster',
+    '1'   => 'average',
+    '2'   => 'high',
   };
 
   return $SevMapping;
@@ -157,11 +178,9 @@ sub triggers {
 
   $self->logger()->log( message => 'Nagios-Triggers', level => 'debug', );
 
-  #my $arr_refs = $self->fetch_n_store('GET services');
-  my $arr_refs = $self->fetch('GET services');
+  my $arr_refs = $self->fetch_n_store('GET services',$self->cache_timeout());
 
   foreach my $e (@{$arr_refs}) {
-    #print "Host: ".$e->{'host_display_name'}." - ".$e->{'description'}." - ".$e->{'plugin_output'}." - ".$e->{'last_state'}."  - ".$e->{'last_time_ok'}."\n";
     my $row = {};
     foreach my $to (keys %{$self->_mapping()}) {
       my $from = $self->_mapping()->{$to};

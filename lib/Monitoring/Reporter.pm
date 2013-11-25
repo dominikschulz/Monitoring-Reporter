@@ -40,6 +40,12 @@ has 'warn_unattended' => (
     'default' => 0,
 );
 
+has 'backend_init_failures' => (
+    'is'      => 'rw',
+    'isa'     => 'ArrayRef',
+    'default' => sub { [] },
+);
+
 with qw(Config::Yak::RequiredConfig Log::Tree::RequiredLogger);
 
 sub _init_cache {
@@ -81,7 +87,20 @@ sub _init_backends {
       $self->logger()->log( message => 'Initialized backend '.$klass, level => 'debug', );
     } catch {
       $self->logger()->log( message => 'Failed to initialize backend '.$klass.' w/ error: '.$_, level => 'warning', );
+      push(@{$self->backend_init_failures()}, {
+        'severity'  => 'disaster',
+        'priority'  => 5,
+        'acknowledged' => 0,
+        'host'      => $backend,
+        'description' => 'Backend init failed!',
+        'lastvalue' => '',
+        'comments'  => 'Please check the mreporter logs for any backend failures!',
+      });
     };
+  }
+
+  if(scalar(keys %{$backends}) < 1) {
+    $self->logger()->log( message => 'No Backends initialized! Check your config and your logs!', level => 'error', );
   }
 
   return $backends;
@@ -97,9 +116,15 @@ sub triggers {
 
   my $row_ref = $self->_do_backend_action('triggers');
 
+  # if there are any permanent backend initialization failures, apped them to the
+  # head of the trigger list
+  if($self->backend_init_failures() && scalar($self->backend_init_failures()) > 0) {
+    unshift(@{$row_ref}, @{$self->backend_init_failures()});
+  }
+
   # Post processing
   # - Sort triggers by severity and age
-  $row_ref = [sort { $b->{'priority'} <=> $a->{'priority'} } @{$row_ref}];
+  $row_ref = [sort { (defined($b->{'priority'}) ? $b->{'priority'} : 0) <=> (defined($a->{'priority'}) ? $a->{'priority'} : 0) } @{$row_ref}];
   # - Sort acked triggers to the end
   my @unacked = ();
   my @acked   = ();
@@ -272,6 +297,15 @@ sub _do_backend_action {
       push(@rows,@{$row_ref});
     } else {
       $self->logger()->log( message => 'Ignoring non-ARRAY result from backend '.$backend.' for action '.$action, level => 'warning', );
+      push(@rows, {
+        'severity'  => 'disaster',
+        'priority'  => 5,
+        'acknowledged' => 0,
+        'host'      => $backend,
+        'description' => 'Backend call failed!',
+        'lastvalue' => '',
+        'comments'  => 'Please check the mreporter logs for any backend failures!',
+      });
     }
   }
 
