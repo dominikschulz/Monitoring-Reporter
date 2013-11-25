@@ -16,5 +16,6 @@
         type = NagiosLivestatus
         peer = /var/lib/socket
       </Nagios>
+    </Backends>
 	</Reporter>
 </Monitoring>
